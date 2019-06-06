@@ -184,14 +184,24 @@ public class WickCheck
 					do
 					{
 						answer = in.nextLine();
+						if ("x".equals(answer))
+						{
+							System.out.print("Exit wick check? (y/n) ");
+							String answer2;
+							do
+							{
+								answer2 = in.nextLine();
+							}
+							while (!("y".equalsIgnoreCase(answer2) || "n".equalsIgnoreCase(answer2)));
+							if ("y".equalsIgnoreCase(answer2))
+							{
+								executor.shutdownNow();
+								return;
+							}
+						}
 					}
-					while (!("c".equals(answer) || "m".equals(answer) || "z".equals(answer) || "x".equals(answer)));
-					if ("x".equals(answer))
-					{
-						executor.shutdownNow();
-						return;
-					}
-					("c".equals(answer) ? correct : "m".equals(answer) ? misuse : indeterminate).add(ww.replace('/', '.'));
+					while (!("c".equalsIgnoreCase(answer) || "m".equalsIgnoreCase(answer) || "z".equalsIgnoreCase(answer)));
+					("c".equalsIgnoreCase(answer) ? correct : "m".equalsIgnoreCase(answer) ? misuse : indeterminate).add(ww.replace('/', '.'));
 				}
 				currentArticle = nextArticle;
 				currentTitle = next;
