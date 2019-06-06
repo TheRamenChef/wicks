@@ -171,7 +171,7 @@ public class WickCheck
 					}
 					catch (ExecutionException e)
 					{
-						toPrint = "[Could not fetch article content automatically" + (e.getMessage() == null ? "" : ": " + e.getMessage()) + ']' + System.lineSeparator();
+						toPrint = "[Could not fetch article content automatically" + (e.getCause().getMessage() == null ? "" : ": " + e.getCause().getMessage()) + ']' + System.lineSeparator();
 					}
 					synchronized (System.out)
 					{
