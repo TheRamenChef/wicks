@@ -27,7 +27,7 @@ import org.jsoup.nodes.Element;
 
 public class WickCheck
 {
-	private static final String USER_AGENT = "@/RamenChef Wick Checker v0.5.0";
+	private static final String USER_AGENT = "@/RamenChef Wick Checker Beta";
 	
 	// matches any valid WikiWord markup
 	// group 2 is namespace, group 3 is non-curly bracket title, group 4 is curly bracket namespace, group 5 is curly bracket title
@@ -196,7 +196,7 @@ public class WickCheck
 				currentArticle = nextArticle;
 				currentTitle = next;
 			}
-			while (nextArticle != null);
+			while (currentArticle != null);
 			executor.shutdown();
 			Comparator<String> articleComparator = (a, b) -> {
 				int sa = a.indexOf('/');
@@ -224,7 +224,7 @@ public class WickCheck
 				appendFolder("Correct Usage", builder, correct);
 			if (!misuse.isEmpty())
 				appendFolder("Misuse", builder, misuse);
-			if (!misuse.isEmpty())
+			if (!indeterminate.isEmpty())
 				appendFolder("Indeterminate", builder, indeterminate);
 			builder.append("Summary: '''");
 			builder.append(correct.size());
