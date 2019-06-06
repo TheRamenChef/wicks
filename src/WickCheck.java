@@ -4,11 +4,14 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 public class WickCheck
@@ -36,6 +39,11 @@ public class WickCheck
 				System.err.println("Invalid wick count: " + args[1]);
 				return;
 			}
+			if (count <= 0)
+			{
+				System.err.println("Invalid wick count: " + args[1]);
+				return;
+			}
 		}
 		else
 		{
@@ -52,19 +60,40 @@ public class WickCheck
 		{
 			if (article.indexOf('/') == -1)
 				article = "Main/" + article;
-			List<Element> wicks;
-			try
+			Collection<Element> redirects;
+			List<Element> links;
+			String base = "https://tvtropes.org/pmwiki/pmwiki.php/" + article;
+			try (InputStream is = connectTo(base).getInputStream())
 			{
-				String base = "https://tvtropes.org/pmwiki/pmwiki.php/" + article;
-				URLConnection connection = connectTo(base);
-				try (InputStream is = connection.getInputStream())
-				{
-					wicks = Jsoup.parse(is, null, base).select("#main-article a");
-				}
+				Document doc = Jsoup.parse(is, null, base);
+				redirects = doc.select("#main-article .acaptionright a");
+				links = doc.select("#main-article a");
 			}
 			catch (IOException e)
 			{
 				System.err.println(e.getMessage() == null ? "Could not get wicks for page." : "Could not get wicks for page: " + e.getMessage());
+				return;
+			}
+			Collection<String> names = new HashSet<>(redirects.size());
+			for (Element link : redirects)
+			{
+				String name = link.absUrl("href");
+				name = name.substring(name.lastIndexOf('=') + 1).toLowerCase();
+				names.add(name);
+				if (name.startsWith("Main/"))
+					names.add(name.substring(5)); // used in searching for the actual wicks
+			}
+			List<String> wicks = new ArrayList<>(links.size()); // most links shouldn't be redirects so this is a good estimate
+			for (Element link : links)
+			{
+				String name = link.absUrl("href");
+				name = name.substring(name.lastIndexOf('/', name.lastIndexOf('/') - 1) + 1);
+				if (!names.contains(name))
+					wicks.add(name);
+			}
+			if (wicks.isEmpty())
+			{
+				System.out.println("Article has no wicks.");
 				return;
 			}
 			if (count == -1)
@@ -94,7 +123,7 @@ public class WickCheck
 			for (int i = 0; i < count; i++)
 			{
 				int swapi = rand.nextInt(wicks.size() - i) + i;
-				selected.add(wicks.get(swapi).absUrl("href"));
+				selected.add(wicks.get(swapi));
 				wicks.set(swapi, wicks.get(i));
 				// don't bother doing a full swap for the indices that will never be used again
 			}
