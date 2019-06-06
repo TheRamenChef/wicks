@@ -301,7 +301,7 @@ public class WickCheck
 		StringBuilder builder = new StringBuilder();
 		List<String> bulletStack = new ArrayList<>();
 		int foundLevel = 0;
-		try (Scanner scanner = new Scanner(connectTo(loc).getInputStream()))
+		try (Scanner scanner = new Scanner(connectTo("https://tvtropes.org/pmwiki/pmwiki.php/" + loc + "?action=source").getInputStream()))
 		{
 			while (!Thread.interrupted() && scanner.hasNextLine())
 			{
