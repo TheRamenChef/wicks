@@ -153,8 +153,17 @@ public class WickCheck
 			Future<String> nextArticle;
 			do
 			{
-				final String next = iter.next();
-				nextArticle = iter.hasNext() ? executor.submit(() -> request(next, names)) : null;
+				final String next;
+				if (iter.hasNext())
+				{
+					next = iter.next();
+					nextArticle = executor.submit(() -> request(next, names));
+				}
+				else
+				{
+					next = null;
+					nextArticle = null;
+				}
 				if (currentArticle != null)
 				{
 					int i1 = currentTitle.lastIndexOf('/') + 1;
