@@ -33,6 +33,7 @@ public class WickCheck
 	// group 2 is namespace, group 3 is non-curly bracket title, group 4 is curly bracket namespace, group 5 is curly bracket title
 	private static final Pattern WIKI_WORD = Pattern.compile("(\\[=.*?=\\])|\\b(?:([A-Z][a-zA-Z0-9]*)[/.])?(?:([A-Z](?=[a-zA-Z0-9]*[A-Z])(?=[a-zA-Z0-9]*[a-z])[a-zA-Z0-9]*)\\b|\\{\\{(?:([A-Z][a-zA-Z0-9]*)[/.])?([a-zA-Z][-a-zA-Z0-9_ \t]*(?:\\b\\|[a-zA-Z][-a-zA-Z0-9_ \t]*)?)\\b\\}\\})");
 	private static final Pattern NOT_ALPHANUM = Pattern.compile("[^a-z0-9]", Pattern.CASE_INSENSITIVE);
+	private static final Pattern NEEDS_BRACES = Pattern.compile("(\\.|^)(.(?:[a-z]*|[A-Z]*))$");
 	
 	public static void main(String[] args)
 	{
@@ -83,8 +84,9 @@ public class WickCheck
 			try (InputStream is = connectTo(base).getInputStream())
 			{
 				Document doc = Jsoup.parse(is, null, base);
-				redirects = doc.select("#main-article .acaptionright a");
+				redirects = doc.select("#main-article .acaptionright a"); // TODO search redirects
 				links = doc.select("#main-article a");
+				links.removeAll(redirects);
 			}
 			catch (IOException e)
 			{
@@ -121,7 +123,7 @@ public class WickCheck
 			}
 			else if (wicks.size() < count)
 			{
-				System.out.print("Actual wick count is less than supplied wick count. Continue anyway? (y/n) ");
+				System.out.print("Actual wick count (" + wicks.size() + ") is less than supplied wick count. Continue anyway? (y/n) ");
 				String answer;
 				do
 				{
@@ -210,7 +212,7 @@ public class WickCheck
 						}
 					}
 					while (!("c".equalsIgnoreCase(answer) || "m".equalsIgnoreCase(answer) || "z".equalsIgnoreCase(answer)));
-					("c".equalsIgnoreCase(answer) ? correct : "m".equalsIgnoreCase(answer) ? misuse : indeterminate).add(ww.replace('/', '.'));
+					("c".equalsIgnoreCase(answer) ? correct : "m".equalsIgnoreCase(answer) ? misuse : indeterminate).add(NEEDS_BRACES.matcher(ww.replace('/', '.')).replaceAll("$1{{$2}}"));
 				}
 				currentArticle = nextArticle;
 				currentTitle = next;
@@ -218,13 +220,16 @@ public class WickCheck
 			while (currentArticle != null);
 			executor.shutdown();
 			Comparator<String> articleComparator = (a, b) -> {
-				int sa = a.indexOf('/');
-				int sb = b.indexOf('/');
-				if (sa == -1 && sb != -1)
-					return -1;
-				if (sb == -1)
+				int sa = a.indexOf('.');
+				int sb = b.indexOf('.');
+				if (sa == -1)
+				{
+					if (sb != -1)
+						return -1;
+				}
+				else if (sb == -1)
 					return 1;
-				return a.compareToIgnoreCase(b);
+				return a.compareTo(b);
 			};
 			correct.sort(articleComparator);
 			misuse.sort(articleComparator);
