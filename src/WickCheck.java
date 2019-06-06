@@ -200,18 +200,12 @@ public class WickCheck
 			executor.shutdown();
 			Comparator<String> articleComparator = (a, b) -> {
 				int sa = a.indexOf('/');
-				String nsa = a.substring(0, sa);
-				String ta = a.substring(sa + 1);
 				int sb = b.indexOf('/');
-				String nsb = b.substring(0, sb);
-				String tb = b.substring(sb + 1);
-				if (nsa.equals(nsb))
-					return ta.compareToIgnoreCase(tb);
-				if ("Main".equalsIgnoreCase(nsa))
+				if (sa == -1 && sb != -1)
 					return -1;
-				if ("Main".equalsIgnoreCase(nsb))
+				if (sb == -1)
 					return 1;
-				return nsa.compareToIgnoreCase(nsb);
+				return a.compareToIgnoreCase(b);
 			};
 			correct.sort(articleComparator);
 			misuse.sort(articleComparator);
