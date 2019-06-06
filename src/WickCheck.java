@@ -6,9 +6,16 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -17,6 +24,11 @@ import org.jsoup.nodes.Element;
 public class WickCheck
 {
 	private static final String USER_AGENT = "@/RamenChef Wick Checker v0.5.0";
+	
+	// matches any valid WikiWord markup
+	// group 1 is namespace, group 2 is non-curly bracket title, group 3 is curly bracket namespace, group 4 is curly bracket title
+	private static final Pattern WIKI_WORD = Pattern.compile("\\b(?:([A-Z][a-zA-Z0-9]*)[/.])?(?:([A-Z](?=[a-zA-Z0-9]*[A-Z])(?=[a-zA-Z0-9]*[a-z])[a-zA-Z0-9]*)\\b|\\{\\{(?:([A-Z][a-zA-Z0-9]*)[/.])?([a-zA-Z][-a-zA-Z0-9_ \t]*(?:\\b\\|[a-zA-Z][-a-zA-Z0-9_ \t]*)?)\\b\\}\\})");
+	private static final Pattern NOT_ALPHANUM = Pattern.compile("[^a-z0-9]", Pattern.CASE_INSENSITIVE);
 	
 	public static void main(String[] args)
 	{
@@ -78,17 +90,14 @@ public class WickCheck
 			for (Element link : redirects)
 			{
 				String name = link.absUrl("href");
-				name = name.substring(name.lastIndexOf('=') + 1).toLowerCase();
-				names.add(name);
-				if (name.startsWith("Main/"))
-					names.add(name.substring(5)); // used in searching for the actual wicks
+				names.add(name.substring(name.lastIndexOf('=') + 1).toLowerCase());
 			}
 			List<String> wicks = new ArrayList<>(links.size()); // most links shouldn't be redirects so this is a good estimate
 			for (Element link : links)
 			{
 				String name = link.absUrl("href");
 				name = name.substring(name.lastIndexOf('/', name.lastIndexOf('/') - 1) + 1);
-				if (!names.contains(name))
+				if (!names.contains(name.toLowerCase()))
 					wicks.add(name);
 			}
 			if (wicks.isEmpty())
@@ -127,6 +136,57 @@ public class WickCheck
 				wicks.set(swapi, wicks.get(i));
 				// don't bother doing a full swap for the indices that will never be used again
 			}
+			
+			List<String> correct = new ArrayList<>();
+			List<String> misuse = new ArrayList<>();
+			List<String> indeterminate = new ArrayList<>();
+			
+			ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "article downloader"));
+			Iterator<String> iter = selected.iterator();
+			String currentTitle = null;
+			Future<String> currentArticle = null;
+			Future<String> nextArticle;
+			do
+			{
+				final String next = iter.next();
+				nextArticle = iter.hasNext() ? executor.submit(() -> request(next, names)) : null;
+				if (currentArticle != null)
+				{
+					int i1 = currentTitle.lastIndexOf('/') + 1;
+					int i2 = currentTitle.lastIndexOf('/', i1 - 2) + 1;
+					String ww = currentTitle.substring("Main/".equals(currentTitle.substring(i2, i1)) ? i1 : i2);
+					String toPrint;
+					try
+					{
+						toPrint = currentArticle.get();
+					}
+					catch (InterruptedException e)
+					{
+						break;
+					}
+					catch (ExecutionException e)
+					{
+						toPrint = "[Could not fetch article content automatically" + (e.getMessage() == null ? "" : ": " + e.getMessage()) + ']' + System.lineSeparator();
+					}
+					synchronized (System.out)
+					{
+						System.out.println("Article: " + ww);
+						System.out.print(toPrint);
+						System.out.println("Type m for misuse, c for correct usage, or z for indeterminate.");
+					}
+					String answer;
+					do
+					{
+						answer = in.nextLine();
+					}
+					while (!("c".equals(answer) || "m".equals(answer) || "z".equals(answer)));
+					("c".equals(answer) ? correct : "m".equals(answer) ? misuse : indeterminate).add(ww.replace('/', '.'));
+					System.out.println();
+				}
+				currentArticle = nextArticle;
+				currentTitle = next;
+			}
+			while (nextArticle != null);
 		}
 	}
 	
@@ -136,5 +196,77 @@ public class WickCheck
 		connection.setRequestProperty("User-Agent", USER_AGENT);
 		connection.connect();
 		return connection;
+	}
+	
+	private static String request(String loc, Collection<String> lookFor) throws IOException
+	{
+		List<String> lines = new ArrayList<>();
+		try (Scanner scanner = new Scanner(connectTo(loc).getInputStream()))
+		{
+			while (scanner.hasNextLine())
+			{
+				String line = scanner.nextLine();
+				if (line.trim().isEmpty())
+					continue;
+				while (scanner.hasNextLine() && line.endsWith("\\\\"))
+					line += System.lineSeparator() + scanner.nextLine();
+				lines.add(line.replace('\u001b', '\0')); // these might be a security risk with a terminal
+			}
+		}
+		StringBuilder builder = new StringBuilder();
+		Iterator<String> iter = lines.iterator();
+		List<String> bulletStack = new ArrayList<>();
+		int foundLevel = 0;
+		while (iter.hasNext())
+		{
+			String line = iter.next();
+			final int level = level(line);
+			if (foundLevel > 0 && level > foundLevel)
+			{
+				if (level > foundLevel)
+				{
+					builder.append(line);
+					builder.append(System.lineSeparator());
+					continue;
+				}
+				else
+					foundLevel = 0;
+			}
+			bulletStack.removeIf(s -> level(s) <= level);
+			bulletStack.add(line);
+			Matcher m = WIKI_WORD.matcher(line);
+			while (m.find())
+			{
+				String namespace = "Main";
+				String title = m.group(2);
+				if (title == null) // curly bracket notation
+				{
+					title = NOT_ALPHANUM.matcher(m.group(4)).replaceAll("");
+					if (m.group(3) != null)
+						namespace = m.group(3);
+				}
+				if (m.group(1) != null)
+					namespace = m.group(1);
+				if (lookFor.contains(namespace.toLowerCase() + '/' + title.toLowerCase()))
+				{
+					for (String bullet : bulletStack)
+					{
+						builder.append(bullet);
+						builder.append(System.lineSeparator());
+					}
+					bulletStack.clear();
+					foundLevel = level;
+					break;
+				}
+			}
+		}
+		return builder.toString();
+	}
+	
+	private static int level(String line)
+	{
+		int level;
+		for (level = 0; line.charAt(level) == '*'; level++);
+		return level;
 	}
 }
