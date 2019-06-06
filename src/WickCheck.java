@@ -30,8 +30,8 @@ public class WickCheck
 	private static final String USER_AGENT = "@/RamenChef Wick Checker v0.5.0";
 	
 	// matches any valid WikiWord markup
-	// group 1 is namespace, group 2 is non-curly bracket title, group 3 is curly bracket namespace, group 4 is curly bracket title
-	private static final Pattern WIKI_WORD = Pattern.compile("\\b(?:([A-Z][a-zA-Z0-9]*)[/.])?(?:([A-Z](?=[a-zA-Z0-9]*[A-Z])(?=[a-zA-Z0-9]*[a-z])[a-zA-Z0-9]*)\\b|\\{\\{(?:([A-Z][a-zA-Z0-9]*)[/.])?([a-zA-Z][-a-zA-Z0-9_ \t]*(?:\\b\\|[a-zA-Z][-a-zA-Z0-9_ \t]*)?)\\b\\}\\})");
+	// group 2 is namespace, group 3 is non-curly bracket title, group 4 is curly bracket namespace, group 5 is curly bracket title
+	private static final Pattern WIKI_WORD = Pattern.compile("(\\[=.*?=\\])|\\b(?:([A-Z][a-zA-Z0-9]*)[/.])?(?:([A-Z](?=[a-zA-Z0-9]*[A-Z])(?=[a-zA-Z0-9]*[a-z])[a-zA-Z0-9]*)\\b|\\{\\{(?:([A-Z][a-zA-Z0-9]*)[/.])?([a-zA-Z][-a-zA-Z0-9_ \t]*(?:\\b\\|[a-zA-Z][-a-zA-Z0-9_ \t]*)?)\\b\\}\\})");
 	private static final Pattern NOT_ALPHANUM = Pattern.compile("[^a-z0-9]", Pattern.CASE_INSENSITIVE);
 	
 	public static void main(String[] args)
@@ -328,16 +328,18 @@ public class WickCheck
 				Matcher m = WIKI_WORD.matcher(line);
 				while (m.find())
 				{
+					if (m.group(1) != null)
+						continue; // escaped
 					String namespace = "Main";
-					String title = m.group(2);
+					String title = m.group(3);
 					if (title == null) // curly bracket notation
 					{
-						title = NOT_ALPHANUM.matcher(m.group(4)).replaceAll("");
-						if (m.group(3) != null)
-							namespace = m.group(3);
+						title = NOT_ALPHANUM.matcher(m.group(5)).replaceAll("");
+						if (m.group(4) != null)
+							namespace = m.group(4);
 					}
-					if (m.group(1) != null)
-						namespace = m.group(1);
+					if (m.group(2) != null)
+						namespace = m.group(2);
 					if (lookFor.contains(namespace.toLowerCase() + '/' + title.toLowerCase()))
 					{
 						for (String bullet : bulletStack)
