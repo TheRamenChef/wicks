@@ -100,7 +100,7 @@ public class WickCheck
 			{
 				if (wicks.size() <= 50)
 					count = wicks.size();
-				else if (wicks.size() > 2401) // 49^2
+				else if (wicks.size() > 2500)
 					count = (int)Math.ceil(Math.sqrt(wicks.size()));
 				else
 					count = 50;
