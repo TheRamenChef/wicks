@@ -1,5 +1,7 @@
 # wicks
 
+### This tool is still pending approval from the TVTropes staff, and is mostly untested. Do not use it before those issues are resolved.
+
 This is a command-line tool to help make wick checks on [TVTropes](https://tvtropes.org). To use it, enter:
 
     java WickCheck [WikiWord]
