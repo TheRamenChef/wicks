@@ -354,7 +354,7 @@ public class WickCheck
 	private static int level(String line)
 	{
 		int level;
-		for (level = 0; line.charAt(level) == '*'; level++);
+		for (level = 0; line.charAt(level) == '*' || line.charAt(level) == '-'; level++);
 		return level;
 	}
 }
