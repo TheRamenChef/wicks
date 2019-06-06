@@ -172,14 +172,19 @@ public class WickCheck
 					{
 						System.out.println("Article: " + ww);
 						System.out.print(toPrint);
-						System.out.println("Type m for misuse, c for correct usage, or z for indeterminate.");
+						System.out.println("Type m for misuse, c for correct usage, or z for indeterminate. Type x to exit.");
 					}
 					String answer;
 					do
 					{
 						answer = in.nextLine();
 					}
-					while (!("c".equals(answer) || "m".equals(answer) || "z".equals(answer)));
+					while (!("c".equals(answer) || "m".equals(answer) || "z".equals(answer) || "x".equals(answer)));
+					if ("x".equals(answer))
+					{
+						executor.shutdownNow();
+						return;
+					}
 					("c".equals(answer) ? correct : "m".equals(answer) ? misuse : indeterminate).add(ww.replace('/', '.'));
 					System.out.println();
 				}
@@ -200,63 +205,57 @@ public class WickCheck
 	
 	private static String request(String loc, Collection<String> lookFor) throws IOException
 	{
-		List<String> lines = new ArrayList<>();
+		StringBuilder builder = new StringBuilder();
+		List<String> bulletStack = new ArrayList<>();
+		int foundLevel = 0;
 		try (Scanner scanner = new Scanner(connectTo(loc).getInputStream()))
 		{
-			while (scanner.hasNextLine())
+			while (!Thread.interrupted() && scanner.hasNextLine())
 			{
 				String line = scanner.nextLine();
 				if (line.trim().isEmpty())
 					continue;
 				while (scanner.hasNextLine() && line.endsWith("\\\\"))
 					line += System.lineSeparator() + scanner.nextLine();
-				lines.add(line.replace('\u001b', '\0')); // these might be a security risk with a terminal
-			}
-		}
-		StringBuilder builder = new StringBuilder();
-		Iterator<String> iter = lines.iterator();
-		List<String> bulletStack = new ArrayList<>();
-		int foundLevel = 0;
-		while (iter.hasNext())
-		{
-			String line = iter.next();
-			final int level = level(line);
-			if (foundLevel > 0 && level > foundLevel)
-			{
-				if (level > foundLevel)
+				line = line.replace('\u001b', '\0'); // these might be a security risk with a terminal
+				final int level = level(line);
+				if (foundLevel > 0 && level > foundLevel)
 				{
-					builder.append(line);
-					builder.append(System.lineSeparator());
-					continue;
-				}
-				else
-					foundLevel = 0;
-			}
-			bulletStack.removeIf(s -> level(s) <= level);
-			bulletStack.add(line);
-			Matcher m = WIKI_WORD.matcher(line);
-			while (m.find())
-			{
-				String namespace = "Main";
-				String title = m.group(2);
-				if (title == null) // curly bracket notation
-				{
-					title = NOT_ALPHANUM.matcher(m.group(4)).replaceAll("");
-					if (m.group(3) != null)
-						namespace = m.group(3);
-				}
-				if (m.group(1) != null)
-					namespace = m.group(1);
-				if (lookFor.contains(namespace.toLowerCase() + '/' + title.toLowerCase()))
-				{
-					for (String bullet : bulletStack)
+					if (level > foundLevel)
 					{
-						builder.append(bullet);
+						builder.append(line);
 						builder.append(System.lineSeparator());
+						continue;
 					}
-					bulletStack.clear();
-					foundLevel = level;
-					break;
+					else
+						foundLevel = 0;
+				}
+				bulletStack.removeIf(s -> level(s) <= level);
+				bulletStack.add(line);
+				Matcher m = WIKI_WORD.matcher(line);
+				while (m.find())
+				{
+					String namespace = "Main";
+					String title = m.group(2);
+					if (title == null) // curly bracket notation
+					{
+						title = NOT_ALPHANUM.matcher(m.group(4)).replaceAll("");
+						if (m.group(3) != null)
+							namespace = m.group(3);
+					}
+					if (m.group(1) != null)
+						namespace = m.group(1);
+					if (lookFor.contains(namespace.toLowerCase() + '/' + title.toLowerCase()))
+					{
+						for (String bullet : bulletStack)
+						{
+							builder.append(bullet);
+							builder.append(System.lineSeparator());
+						}
+						bulletStack.clear();
+						foundLevel = level;
+						break;
+					}
 				}
 			}
 		}
