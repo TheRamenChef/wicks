@@ -1,10 +1,14 @@
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -68,6 +72,7 @@ public class WickCheck
 			return;
 		}
 		
+		List<String> correct, misuse, indeterminate;
 		try (Scanner in = new Scanner(System.in))
 		{
 			if (article.indexOf('/') == -1)
@@ -137,9 +142,9 @@ public class WickCheck
 				// don't bother doing a full swap for the indices that will never be used again
 			}
 			
-			List<String> correct = new ArrayList<>();
-			List<String> misuse = new ArrayList<>();
-			List<String> indeterminate = new ArrayList<>();
+			correct = new ArrayList<>();
+			misuse = new ArrayList<>();
+			indeterminate = new ArrayList<>();
 			
 			ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "article downloader"));
 			Iterator<String> iter = selected.iterator();
@@ -170,6 +175,7 @@ public class WickCheck
 					}
 					synchronized (System.out)
 					{
+						System.out.println();
 						System.out.println("Article: " + ww);
 						System.out.print(toPrint);
 						System.out.println("Type m for misuse, c for correct usage, or z for indeterminate. Type x to exit.");
@@ -186,13 +192,100 @@ public class WickCheck
 						return;
 					}
 					("c".equals(answer) ? correct : "m".equals(answer) ? misuse : indeterminate).add(ww.replace('/', '.'));
-					System.out.println();
 				}
 				currentArticle = nextArticle;
 				currentTitle = next;
 			}
 			while (nextArticle != null);
+			executor.shutdown();
+			Comparator<String> articleComparator = (a, b) -> {
+				int sa = a.indexOf('/');
+				String nsa = a.substring(0, sa);
+				String ta = a.substring(sa + 1);
+				int sb = b.indexOf('/');
+				String nsb = b.substring(0, sb);
+				String tb = b.substring(sb + 1);
+				if (nsa.equals(nsb))
+					return ta.compareToIgnoreCase(tb);
+				if ("Main".equalsIgnoreCase(nsa))
+					return -1;
+				if ("Main".equalsIgnoreCase(nsb))
+					return 1;
+				return nsa.compareToIgnoreCase(nsb);
+			};
+			correct.sort(articleComparator);
+			misuse.sort(articleComparator);
+			indeterminate.sort(articleComparator);
+			// TODO: calculate a p-value
+			StringBuilder builder = new StringBuilder("%%");
+			builder.append(System.lineSeparator());
+			builder.append("%% Wick check summary generated using " + USER_AGENT + " at ");
+			builder.append(new Date());
+			builder.append(System.lineSeparator());
+			builder.append("%%");
+			builder.append(System.lineSeparator());
+			builder.append("[[foldercontrol]]");
+			builder.append(System.lineSeparator());
+			if (!correct.isEmpty())
+				appendFolder("Correct Usage", builder, correct);
+			if (!misuse.isEmpty())
+				appendFolder("Misuse", builder, misuse);
+			if (!misuse.isEmpty())
+				appendFolder("Indeterminate", builder, indeterminate);
+			builder.append("Summary: '''");
+			builder.append(correct.size());
+			builder.append("''' correct usage, '''");
+			builder.append(misuse.size());
+			builder.append("''' misuse, and '''");
+			builder.append(indeterminate.size());
+			builder.append("''' indeterminate.");
+			
+			if (args.length % 2 == 0)
+			{
+				try (OutputStream os = new FileOutputStream(args[args.length - 1]))
+				{
+					os.write(builder.toString().getBytes());
+					return;
+				}
+				catch (IOException e)
+				{
+					synchronized (System.out)
+					{
+						System.out.println("Could not save wick check summary to file" + (e.getMessage() == null ? "." : ": " + e.getMessage()));
+						System.out.print("Print to STDOUT? (y/n) ");
+					}
+					String answer;
+					do
+					{
+						answer = in.nextLine();
+					}
+					while (!("y".equalsIgnoreCase(answer) || "n".equalsIgnoreCase(answer)));
+					if ("n".equals(answer))
+						return;
+				}
+			}
+			System.out.println();
+			System.out.println(builder);
 		}
+	}
+	
+	private static void appendFolder(String name, StringBuilder builder, List<String> contents)
+	{
+		builder.append("[[folder:");
+		builder.append(name);
+		builder.append("]]");
+		builder.append(System.lineSeparator());
+		for (String article : contents)
+		{
+			builder.append("* ");
+			if (article.startsWith("Main/"))
+				builder.append(article.substring(5));
+			else
+				builder.append(article);
+			builder.append(System.lineSeparator());
+		}
+		builder.append("[[/folder]]");
+		builder.append(System.lineSeparator());
 	}
 	
 	private static URLConnection connectTo(String loc) throws IOException
