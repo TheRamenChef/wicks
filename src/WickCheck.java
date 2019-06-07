@@ -250,6 +250,8 @@ public class WickCheck
 				appendFolder("Misuse", builder, misuse);
 			if (!indeterminate.isEmpty())
 				appendFolder("Indeterminate", builder, indeterminate);
+			builder.append("----");
+			builder.append(System.lineSeparator());
 			builder.append("Summary: '''");
 			builder.append(correct.size());
 			builder.append("''' correct usage, '''");
